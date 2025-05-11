@@ -1,6 +1,7 @@
 const express = require("express")
 const dotenv = require("dotenv")
 const mongoose = require("mongoose")
+const jwt = require("jsonwebtoken")
 const bcrypt = require("bcryptjs")
 const { Product } = require("./models/productModel")
 const { Auth } = require("./models/authModel")
@@ -195,4 +196,51 @@ app.post("/auth/signup", async (request, response) => {
     })
   }
 
+})
+
+
+//LOGIN
+app.post("/auth/login", async (request, response) => {
+  const {email, password} = request.body
+  const existingUser = await Auth.findOne({email})
+  if(!existingUser){
+    return response.status(404).json({
+      success: false,
+      message: `User with this email address does not exist`
+    })
+  }
+
+  const isMatch = await bcrypt.compare(password, existingUser?.password)
+  if (!isMatch){
+    return response.status(400).json({
+      success: true,
+      message: `Invalid email or password`
+    })
+  }
+
+  //You can check if user is verified
+
+  // generate token
+  
+  
+  
+  const accessToken = jwt.sign(
+    {id: existingUser?._id},
+    process.env.ACCESS_TOKEN,
+    {expiresIn: '10m'}
+  )
+
+  const refreshToken = jwt.sign(
+    {id: existingUser?._id},
+    process.env.REFRESH_TOKEN,
+    {expiresIn: '10d'}
+  )
+
+  response.status(200).json({
+    success: true,
+    message: 'Login successful',
+    accessToken,
+    refreshToken,
+    existingUser
+  })
 })
