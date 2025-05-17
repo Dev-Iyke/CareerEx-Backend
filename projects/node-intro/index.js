@@ -8,6 +8,7 @@ app.use(express.json())
 
 // Dynamically creating a port
 const port = process.env.PORT || 5000
+const MONGODB_URL = "mongodb+srv://dev-iyke:dev-iyke@cluster0.kstejkd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 // Running the server, listening on specified port
 app.listen(port, (e) => {
