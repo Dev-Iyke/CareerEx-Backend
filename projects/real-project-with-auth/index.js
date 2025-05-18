@@ -7,6 +7,8 @@ const { Product } = require("./models/productModel");
 const { Auth } = require("./models/authModel");
 const { sendForgotPasswordEmail } = require("./helpers/sendMail");
 const { validateEmail } = require("./validators/email");
+const { handleGetAllUsers, handleUserSignup } = require("./controllers/auth");
+const { validateSignup, authorization } = require("./middlewares/auth");
 
 const app = express();
 dotenv.config();
@@ -150,58 +152,7 @@ app.delete("/delete-product/:id", async (request, response) => {
 });
 
 // AUTH
-app.post("/auth/signup", async (request, response) => {
-  try {
-    const { email, password, firstName, lastName, role } = request.body;
-    if (!email) {
-      return response.status(409).json({
-        success: false,
-        message: `missing required field: email`,
-      });
-    }
-
-    if (!validateEmail(email)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Incorrect email format" });
-    }
-
-    if (!password || password.length < 6) {
-      return response.status(409).json({
-        success: false,
-        message: `missing required field or invalid format: password`,
-      });
-    }
-
-    const user = await Auth.findOne({ email });
-    if (user) {
-      return response.status(400).json({
-        success: false,
-        message: `User with email: ${email} already exists. Sign in`,
-      });
-    }
-    const hashedPassword = await bcrypt.hash(password, 12);
-    const data = {
-      email,
-      password: hashedPassword,
-      firstName,
-      lastName,
-      role,
-    };
-    const newUser = new Auth(data);
-    await newUser.save();
-    return response.status(201).json({
-      success: true,
-      message: `User registered successfully`,
-      newUser,
-    });
-  } catch (e) {
-    return response.status(500).json({
-      success: false,
-      message: `Error: ${e.message}`,
-    });
-  }
-});
+app.post("/auth/signup", validateSignup, handleUserSignup);
 
 //LOGIN
 app.post("/auth/login", async (request, response) => {
@@ -229,7 +180,7 @@ app.post("/auth/login", async (request, response) => {
   const accessToken = jwt.sign(
     { id: existingUser?._id },
     process.env.ACCESS_TOKEN,
-    { expiresIn: "10m" }
+    { expiresIn: "3h" }
   );
 
   const refreshToken = jwt.sign(
@@ -248,8 +199,9 @@ app.post("/auth/login", async (request, response) => {
 });
 
 // forgot password
-app.post("/auth/forgot-password", async (request, response) => {
-  const { email } = request.body;
+app.post("/auth/forgot-password", authorization, async (request, response) => {
+  // const { email } = request.body;
+  const email = request.user.email
   const existingUser = await Auth.findOne({ email });
   if (!existingUser) {
     return response.status(404).json({
@@ -301,3 +253,6 @@ app.patch("/reset-password", async (request, response) => {
     .status(200)
     .json({ success: true, message: "Password reset successful." });
 });
+
+
+app.get('/all-users', authorization, handleGetAllUsers)
