@@ -1,18 +1,14 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
+const cors = require("cors")
 const { Product } = require("./models/productModel");
-const { Auth } = require("./models/authModel");
-const { sendForgotPasswordEmail } = require("./helpers/sendMail");
-const { validateEmail } = require("./validators/email");
-const { handleGetAllUsers, handleUserSignup } = require("./controllers/auth");
-const { validateSignup, authorization } = require("./middlewares/auth");
+const routes = require("./routes");
 
 const app = express();
 dotenv.config();
 app.use(express.json());
+app.use(cors())
 const port = process.env.PORT;
 
 const url = process.env.MONGODB_URL;
@@ -73,6 +69,7 @@ app.get("/all-products", async (request, response) => {
     allProducts,
   });
 });
+
 //READ: A single product
 app.get("/one-product/:id", async (request, response) => {
   // if(!request.params || !request.params.id){
@@ -151,108 +148,5 @@ app.delete("/delete-product/:id", async (request, response) => {
   });
 });
 
-// AUTH
-app.post("/auth/signup", validateSignup, handleUserSignup);
 
-//LOGIN
-app.post("/auth/login", async (request, response) => {
-  const { email, password } = request.body;
-  const existingUser = await Auth.findOne({ email });
-  if (!existingUser) {
-    return response.status(404).json({
-      success: false,
-      message: `User with this email address does not exist`,
-    });
-  }
-
-  const isMatch = await bcrypt.compare(password, existingUser?.password);
-  if (!isMatch) {
-    return response.status(400).json({
-      success: false,
-      message: `Invalid email or password`,
-    });
-  }
-
-  //You can check if user is verified
-
-  // generate token
-
-  const accessToken = jwt.sign(
-    { id: existingUser?._id },
-    process.env.ACCESS_TOKEN,
-    { expiresIn: "3h" }
-  );
-
-  const refreshToken = jwt.sign(
-    { id: existingUser?._id },
-    process.env.REFRESH_TOKEN,
-    { expiresIn: "10d" }
-  );
-
-  response.status(200).json({
-    success: true,
-    message: "Login successful",
-    accessToken,
-    refreshToken,
-    existingUser,
-  });
-});
-
-// forgot password
-app.post("/auth/forgot-password", authorization, async (request, response) => {
-  // const { email } = request.body;
-  const email = request.user.email
-  const existingUser = await Auth.findOne({ email });
-  if (!existingUser) {
-    return response.status(404).json({
-      success: false,
-      message: `User with this email address does not exist`,
-    });
-  }
-
-  const user = await Auth.findOne({ email });
-
-  if (!user) {
-    return res.status(404).json({ success: false, message: "User not found." });
-  }
-
-  //Reset token
-  const accessToken = jwt.sign(
-    { id: existingUser?._id },
-    process.env.ACCESS_TOKEN,
-    { expiresIn: "10m" }
-  );
-
-  //SEND MAIL TO RESET PASSWORD
-  await sendForgotPasswordEmail(email, accessToken);
-
-  response.status(200).json({
-    success: true,
-    message: "email sent successfully",
-  });
-});
-
-app.patch("/reset-password", async (request, response) => {
-  const { email, password } = request.body;
-
-  const user = await Auth.findOne({ email });
-
-  if (!user) {
-    return response
-      .status(404)
-      .json({ success: false, message: "User account not found!" });
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 12);
-
-  user.password = hashedPassword;
-
-  await user.save();
-
-  response
-    .status(200)
-    .json({ success: true, message: "Password reset successful." });
-});
-
-
-app.get('/all-users', authorization, handleGetAllUsers)
+app.use(routes)
